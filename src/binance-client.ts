@@ -85,7 +85,22 @@ export class BinanceClient {
 
     const query = createQueryString(finalParams);
     const url = `${this.config.baseUrl}${path}${query ? `?${query}` : ""}`;
-    const response = await this.fetchImpl(url, { method, headers });
+    const attempts = method === "GET" ? 3 : 1;
+    let response: Response | undefined;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        response = await this.fetchImpl(url, { method, headers, signal: AbortSignal.timeout(10_000) });
+      } catch (error) {
+        if (attempt === attempts - 1) throw error;
+        await delay(250 * (attempt + 1));
+        continue;
+      }
+      if (response.status !== 429 || attempt === attempts - 1) break;
+      const retryAfter = response.headers.get("retry-after");
+      const seconds = retryAfter && /^\d+$/.test(retryAfter) ? Math.min(Number(retryAfter), 3) : 1;
+      await delay(seconds * 1000);
+    }
+    if (!response) throw new Error("Binance request did not receive a response.");
     const body = await response.json().catch(() => undefined) as
       | { code?: number; msg?: string }
       | undefined;
@@ -99,4 +114,8 @@ export class BinanceClient {
     }
     return body;
   }
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

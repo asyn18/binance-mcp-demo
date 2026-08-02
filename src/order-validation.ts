@@ -127,6 +127,19 @@ export function validateMinimumNotional(
   }
 }
 
+export function validateMaximumNotional(
+  price: string,
+  quantity: string,
+  maxNotional: string,
+): void {
+  const notional = multiply(decimal(price), decimal(quantity));
+  if (compare(notional, decimal(maxNotional)) > 0) {
+    throw new Error(
+      `Order notional ${display(notional)} is above the maximum notional ${maxNotional}. Normalized price: ${display(decimal(price))}; normalized quantity: ${display(decimal(quantity))}. No order was submitted.`,
+    );
+  }
+}
+
 export function validatePercentPriceBySide(
   side: "BUY" | "SELL",
   orderPrice: string,
@@ -168,7 +181,10 @@ export function validateAndNormalizeOrder(
   if (!input.price) throw new Error("LIMIT orders require price.");
   if (!info.priceFilter) throw new Error(`Symbol ${info.symbol} has no PRICE_FILTER. No order was submitted.`);
   const price = validatePrice(input.price, info.priceFilter);
-  if (info.notional) validateMinimumNotional(price, quantity, info.notional.minNotional);
+  if (info.notional) {
+    validateMinimumNotional(price, quantity, info.notional.minNotional);
+    if (info.notional.maxNotional) validateMaximumNotional(price, quantity, info.notional.maxNotional);
+  }
   if (info.percentPriceBySide) {
     if (!tickerPrice) throw new Error("Current ticker price is required for PERCENT_PRICE_BY_SIDE validation.");
     validatePercentPriceBySide(input.side, price, tickerPrice, info.percentPriceBySide);

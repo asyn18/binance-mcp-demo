@@ -55,6 +55,13 @@ export interface SimplifiedSymbolInfo {
   marketLotSize?: LotSizeFilter;
   notional?: NotionalFilter;
   percentPriceBySide?: PercentPriceBySideFilter;
+  /** Binance filter names are also exposed verbatim for MCP consumers. */
+  PRICE_FILTER?: PriceFilter;
+  LOT_SIZE?: LotSizeFilter;
+  MARKET_LOT_SIZE?: LotSizeFilter;
+  MIN_NOTIONAL?: NotionalFilter;
+  NOTIONAL?: NotionalFilter;
+  PERCENT_PRICE_BY_SIDE?: PercentPriceBySideFilter;
 }
 
 function stringField(filter: BinanceFilter, field: string): string {
@@ -106,6 +113,31 @@ export function simplifySymbolInfo(record: BinanceSymbolRecord): SimplifiedSymbo
   const minNotional = filters.get("MIN_NOTIONAL");
   const notional = filters.get("NOTIONAL");
   const percentPriceBySide = filters.get("PERCENT_PRICE_BY_SIDE");
+  const simplifiedNotional = minNotional || notional
+    ? {
+        filterType: (minNotional ? "MIN_NOTIONAL" : "NOTIONAL") as "MIN_NOTIONAL" | "NOTIONAL",
+        minNotional: stringField(minNotional ?? notional!, "minNotional"),
+        ...(notional && typeof notional.maxNotional === "string"
+          ? { maxNotional: notional.maxNotional }
+          : {}),
+        applyToMarket: optionalBooleanField(minNotional ?? notional!, "applyToMarket"),
+        avgPriceMins: optionalNumberField(minNotional ?? notional!, "avgPriceMins"),
+      }
+    : undefined;
+  const simplifiedPrice = price
+    ? { minPrice: stringField(price, "minPrice"), maxPrice: stringField(price, "maxPrice"), tickSize: stringField(price, "tickSize") }
+    : undefined;
+  const simplifiedLot = lotSize ? asLotSize(lotSize) : undefined;
+  const simplifiedMarketLot = marketLotSize ? asLotSize(marketLotSize) : undefined;
+  const simplifiedPercent = percentPriceBySide
+    ? {
+        bidMultiplierUp: stringField(percentPriceBySide, "bidMultiplierUp"),
+        bidMultiplierDown: stringField(percentPriceBySide, "bidMultiplierDown"),
+        askMultiplierUp: stringField(percentPriceBySide, "askMultiplierUp"),
+        askMultiplierDown: stringField(percentPriceBySide, "askMultiplierDown"),
+        avgPriceMins: optionalNumberField(percentPriceBySide, "avgPriceMins"),
+      }
+    : undefined;
 
   return {
     symbol: record.symbol,
@@ -113,38 +145,16 @@ export function simplifySymbolInfo(record: BinanceSymbolRecord): SimplifiedSymbo
     baseAsset: record.baseAsset,
     quoteAsset: record.quoteAsset,
     allowedOrderTypes: record.orderTypes,
-    priceFilter: price
-      ? {
-          minPrice: stringField(price, "minPrice"),
-          maxPrice: stringField(price, "maxPrice"),
-          tickSize: stringField(price, "tickSize"),
-        }
-      : undefined,
-    lotSize: lotSize ? asLotSize(lotSize) : undefined,
-    marketLotSize: marketLotSize ? asLotSize(marketLotSize) : undefined,
-    notional: minNotional || notional
-      ? {
-          filterType: (minNotional ? "MIN_NOTIONAL" : "NOTIONAL"),
-          minNotional: stringField(minNotional ?? notional!, "minNotional"),
-          ...(notional && typeof notional.maxNotional === "string"
-            ? { maxNotional: notional.maxNotional }
-            : {}),
-          ...(minNotional || notional
-            ? {
-                applyToMarket: optionalBooleanField(minNotional ?? notional!, "applyToMarket"),
-                avgPriceMins: optionalNumberField(minNotional ?? notional!, "avgPriceMins"),
-              }
-            : {}),
-        }
-      : undefined,
-    percentPriceBySide: percentPriceBySide
-      ? {
-          bidMultiplierUp: stringField(percentPriceBySide, "bidMultiplierUp"),
-          bidMultiplierDown: stringField(percentPriceBySide, "bidMultiplierDown"),
-          askMultiplierUp: stringField(percentPriceBySide, "askMultiplierUp"),
-          askMultiplierDown: stringField(percentPriceBySide, "askMultiplierDown"),
-          avgPriceMins: optionalNumberField(percentPriceBySide, "avgPriceMins"),
-        }
-      : undefined,
+    priceFilter: simplifiedPrice,
+    lotSize: simplifiedLot,
+    marketLotSize: simplifiedMarketLot,
+    notional: simplifiedNotional,
+    percentPriceBySide: simplifiedPercent,
+    PRICE_FILTER: simplifiedPrice,
+    LOT_SIZE: simplifiedLot,
+    MARKET_LOT_SIZE: simplifiedMarketLot,
+    ...(simplifiedNotional?.filterType === "MIN_NOTIONAL" ? { MIN_NOTIONAL: simplifiedNotional } : {}),
+    ...(simplifiedNotional?.filterType === "NOTIONAL" ? { NOTIONAL: simplifiedNotional } : {}),
+    PERCENT_PRICE_BY_SIDE: simplifiedPercent,
   };
 }

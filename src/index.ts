@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { BinanceClient } from "./binance-client.js";
 import { loadConfig } from "./config.js";
 import { registerBinanceTools } from "./tools.js";
+import { TradingStore } from "./trading-store.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -11,7 +12,7 @@ async function main(): Promise<void> {
     name: "binance-mcp-demo",
     version: "1.0.0",
   });
-  registerBinanceTools(server, new BinanceClient(config), config);
+  registerBinanceTools(server, new BinanceClient(config), config, new TradingStore());
   await server.connect(new StdioServerTransport());
   await new Promise<void>((resolve) => process.stdin.once("end", resolve));
 }
